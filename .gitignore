@@ -1,0 +1,7 @@
+# Ignore specific Terraform state and lock files in the terraform/root directory
+/terraform/terraform.tfstate.backup
+/terraform/terraform.tfstate
+/terraform/.terraform.lock.hcl
+
+# Ignore the entire .terraform directory in the terraform/root directory
+/terraform/.terraform/

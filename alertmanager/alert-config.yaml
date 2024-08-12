@@ -1,0 +1,37 @@
+alertmanager:
+  enabled: true
+  config:
+    global:
+      resolve_timeout: 5m
+      slack_api_url: "https://hooks.slack.com/services/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"
+    route:
+      receiver: "slack-notifications"
+      repeat_interval: 12h
+      routes:
+        - receiver: "slack-notifications"
+          matchers:
+            - alertname="SockShopInstanceDown"
+          continue: false
+    receivers:
+      - name: "slack-notifications"
+        slack_configs:
+          - channel: "#prometheus_alert"
+            send_resolved: true
+            title: "{{ range .Alerts }}{{ .Annotations.summary }}\n{{ end }}"
+            text: "{{ range .Alerts }}{{ .Annotations.description }}\n{{ end }}"
+
+
+additionalPrometheusRulesMap:
+  rule-name:
+    groups:
+    - name: sockshop-instance-down
+      rules:
+        - alert: SockShopInstanceDown
+          expr: sum(kube_pod_owner{namespace="sock-shop"}) by (namespace) < 23
+          for: 1m
+          labels:
+            severity: 'critical'
+            alert_type: 'infrastructure'
+          annotations:
+            description: ' The Number of pods from the namespace {{ $labels.namespace }} is lower than the expected 23. '
+            summary: 'Pod in {{ $labels.namespace }} namespace down'
