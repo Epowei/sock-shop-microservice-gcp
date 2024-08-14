@@ -3,7 +3,7 @@ alertmanager:
   config:
     global:
       resolve_timeout: 5m
-      slack_api_url: "https://hooks.slack.com/services/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"
+      slack_api_url: <your-slack-webhook-url>
     route:
       receiver: "slack-notifications"
       repeat_interval: 12h
