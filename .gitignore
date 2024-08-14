@@ -5,3 +5,6 @@
 
 # Ignore the entire .terraform directory in the terraform/root directory
 /terraform/.terraform/
+
+# Ignore .env file
+.env
