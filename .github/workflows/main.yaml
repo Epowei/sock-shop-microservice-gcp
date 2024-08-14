@@ -1,0 +1,114 @@
+name: GCP Cluster Management
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'apply'
+        type: choice
+        options:
+        - apply
+        - destroy
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+  TF_STATE_BUCKET: Powei-socks-2918-bucket
+
+jobs:
+  manage-cluster:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Setup GCloud CLI
+      if: github.event.inputs.action == 'apply'
+      uses: google-github-actions/setup-gcloud@v0.2.1
+      with:
+        service_account_key: ${{ secrets.GCP_SA_KEY }}
+        project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+    - name: Install kubectl
+      if: github.event.inputs.action == 'apply'
+      run: |
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        chmod +x kubectl
+        sudo mv kubectl /usr/local/bin/
+
+    - name: Install Helm
+      if: github.event.inputs.action == 'apply'
+      run: |
+        curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v1
+
+    - name: Create Storage for Terraform State
+      if: github.event.inputs.action == 'apply'
+      run: |
+        gsutil mb -p $PROJECT_ID gs://$TF_STATE_BUCKET || true
+
+    - name: Terraform Init
+      run: |
+        cd terraform
+        terraform init -backend-config="bucket=$TF_STATE_BUCKET"
+
+    - name: Terraform Apply
+      if: github.event.inputs.action == 'apply'
+      run: |
+        cd terraform
+        terraform apply -auto-approve
+
+    - name: Update kubeconfig
+      if: github.event.inputs.action == 'apply'
+      run: |
+        gcloud container clusters get-credentials $(terraform output -raw kubernetes_cluster_name) --region $(terraform output -raw region)
+
+    - name: Deploy Application
+      if: github.event.inputs.action == 'apply'
+      run: |
+        cd complete
+        kubectl apply -f .
+
+    - name: Install Ingress-Nginx
+      if: github.event.inputs.action == 'apply'
+      run: |
+        helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+        helm repo update
+        helm install ingress-nginx ingress-nginx/ingress-nginx
+
+    - name: Install Prometheus Stack
+      if: github.event.inputs.action == 'apply'
+      run: |
+        helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+        helm repo update
+        helm install prometheus prometheus-community/kube-prometheus-stack
+
+    - name: Install Cert-Manager
+      if: github.event.inputs.action == 'apply'
+      run: |
+        helm repo add jetstack https://charts.jetstack.io
+        helm repo update
+        helm install cert-manager jetstack/cert-manager --set installCRDs=true
+
+    - name: Terraform Destroy
+      if: github.event.inputs.action == 'destroy'
+      run: |
+        cd terraform
+        terraform destroy -auto-approve
+
+    - name: Delete Storage for Terraform State
+      if: github.event.inputs.action == 'destroy'
+      run: |
+        gsutil rm -r gs://$TF_STATE_BUCKET || true
+
+    - name: Slack Notification
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        text: 'Pipeline ${{ github.event.inputs.action }} completed with status: ${{ job.status }}'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+      if: always()
