@@ -17,7 +17,7 @@ ArgoCD was installed for continuous deployment(CD) on my GCP cluster.
 
 I also used github actions to automate the setup process, ensuring that the application can be deployed quickly and consistently.
 
-## Architectural Diagram
+## Architecture Diagram
 ![archi](./Images/diagram.jpeg)
 
 ## Sock-Shop Deployment
