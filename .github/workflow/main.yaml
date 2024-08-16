@@ -15,7 +15,7 @@ on:
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
-  TF_STATE_BUCKET: your-terraform-state-bucket-name
+  TF_STATE_BUCKET: powei-2987-bucket
 
 jobs:
   manage-cluster:
@@ -24,12 +24,18 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
 
-    - name: Setup GCloud CLI
-      if: github.event.inputs.action == 'apply'
-      uses: google-github-actions/setup-gcloud@v0.2.1
+    - id: 'auth'
+      uses: 'google-github-actions/auth@v1'
       with:
-        service_account_key: ${{ secrets.GCP_SA_KEY }}
-        project_id: ${{ secrets.GCP_PROJECT_ID }}
+        credentials_json: '${{ secrets.GCP_SA_KEY }}'
+        
+
+    - name: 'Set up Cloud SDK'
+      uses: 'google-github-actions/setup-gcloud@v1'
+
+    - name: Install gke-gcloud-auth-plugin
+      run: |
+        gcloud components install gke-gcloud-auth-plugin --quiet
 
     - name: Install kubectl
       if: github.event.inputs.action == 'apply'
@@ -65,7 +71,7 @@ jobs:
     - name: Update kubeconfig
       if: github.event.inputs.action == 'apply'
       run: |
-        gcloud container clusters get-credentials $(terraform output -raw kubernetes_cluster_name) --region $(terraform output -raw region)
+        gcloud container clusters get-credentials sockshop-prod --region us-west1 --project sock-shop-2781
 
     - name: Deploy Application
       if: github.event.inputs.action == 'apply'
@@ -93,6 +99,13 @@ jobs:
         helm repo add jetstack https://charts.jetstack.io
         helm repo update
         helm install cert-manager jetstack/cert-manager --set installCRDs=true
+        kubectl apply -f ./cert-manager/cluster-issuer.yaml
+
+    - name: Apply ingress configuration
+      if: github.event.inputs.action == 'apply'
+      run: |
+        kubectl apply -f ./ingress/Ingress.yaml
+    
 
     - name: Terraform Destroy
       if: github.event.inputs.action == 'destroy'
@@ -105,10 +118,6 @@ jobs:
       run: |
         gsutil rm -r gs://$TF_STATE_BUCKET || true
 
-    - name: Slack Notification
-      uses: 8398a7/action-slack@v3
-      with:
-        status: ${{ job.status }}
-        text: 'Pipeline ${{ github.event.inputs.action }} completed with status: ${{ job.status }}'
-        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
-      if: always()
+    - name: Job Completion Status
+      run: |
+        echo "Github Actions completed job successfully!"
