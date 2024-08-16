@@ -17,6 +17,9 @@ ArgoCD was installed for continuous deployment(CD) on my GCP cluster.
 
 I also used github actions to automate the setup process, ensuring that the application can be deployed quickly and consistently.
 
+## Architectural Diagram
+![archi](./Images/diagram.jpeg)
+
 ## Sock-Shop Deployment
 1. First run terraform init, then terraform plan and terraform apply on vscode.
 
